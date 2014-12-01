@@ -21,11 +21,22 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     
     var screenWidth:CGFloat = 0;
     var screenHeight:CGFloat = 0;
-    var hitCounter = 0
-    let totalBombs = 100
+    
+    var hitCounter: Int = 0
+    var dropCounter: Int = 0
+    
     let bomberScreenPosY:CGFloat = 700
     var bomber:SKSpriteNode = SKSpriteNode()
-    
+    var bottomBrick:SKSpriteNode = SKSpriteNode()
+    var bkgnd = SKSpriteNode()
+    var basket = SKSpriteNode()
+    let bomberSpeed:NSTimeInterval = 0.4
+    var gameStart = false
+    var bombInterval:NSTimeInterval = 0.3
+    var startLabel = SKLabelNode()
+    var scoreLabel = SKLabelNode()
+    var bombAction = SKAction()
+    var bombActionKey = ""
     
     override func didMoveToView(view: SKView) {
         /* Setup your scene here */
@@ -34,35 +45,69 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         myLabel.fontSize = 65;
         myLabel.position = CGPoint(x:CGRectGetMidX(self.frame), y:CGRectGetMidY(self.frame));
         
-        self.screenWidth = UIScreen.mainScreen().bounds.width
-        self.screenHeight = UIScreen.mainScreen().bounds.height
+        
+        
+        
+        startLabel = SKLabelNode(fontNamed:"Chalkduster")
+        startLabel.text = "Game Over";
+        startLabel.fontSize = 65;
+        startLabel.position = CGPoint(x:CGRectGetMidX(self.frame), y:CGRectGetMidY(self.frame) - 70);
+        
+        
+        scoreLabel = SKLabelNode(fontNamed:"Chalkduster")
+        scoreLabel.text = "score: \(hitCounter)";
+        scoreLabel.fontSize = 35;
+        scoreLabel.position = CGPoint(x:80, y: self.frame.height - 100)
+
+        self.screenWidth = self.frame.width //UIScreen.mainScreen().bounds.width
+        self.screenHeight = self.frame.height //UIScreen.mainScreen().bounds.height
         
         println("(\(self.screenWidth), \(self.screenHeight))")
         
-        drawBottom()
-
-        runAction(SKAction.repeatActionForever(
-            SKAction.sequence([
-                SKAction.runBlock(addBomb),
-                SKAction.waitForDuration(0.25)
-                ])
-            )//, count:self.totalBombs)
-        )
-
-//        addBomb()
+        loadSprites()
         
-//        physicsWorld.gravity = CGVectorMake(0, 0)
+        
+        
+        drawBackground()
+        drawBottom()
         
         addBomber()
-        moveBomber()
+        //moveBomber()
         
         addBasket()
         //moveBasket()
         
+        println("scene size: \(self.size.width), \(self.size.height)")
+        println("scene position: \(self.position.x), \(self.position.y)")
+   
+     
+        bombAction = SKAction.runBlock(addBomb)
+        bombActionKey = "bombActionKey"
+        
+        
+            
+        
         physicsWorld.contactDelegate = self
+        
+        
         self.addChild(myLabel)
+        self.addChild(startLabel)
+        self.addChild(scoreLabel)
+
     }
     
+    func displayScore(hit: Int, drop: Int) {
+        scoreLabel.text = "score: \(hit) -\(drop)";
+    }
+    
+    
+    func loadSprites() {
+        bkgnd = SKSpriteNode(imageNamed: "brickwall")
+        bomber = SKSpriteNode(imageNamed: "plushdoll")
+        bottomBrick = SKSpriteNode(imageNamed: "bar")
+        basket = SKSpriteNode(imageNamed: "basket1")
+
+    }
     
     override func update(currentTime: CFTimeInterval) {
         /* Called before each frame is rendered */
@@ -70,24 +115,105 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     
     override func touchesBegan(touches: NSSet, withEvent event: UIEvent) {
         
+        if gameStart==false {
+            gameStart = true
+            startLabel.removeFromParent()
+            
+            hitCounter = 0
+            dropCounter = 0
+            
+            displayScore (hitCounter, drop: dropCounter)
+            bomber.position = CGPoint(x: self.screenWidth/2, y: self.screenHeight - 10)
+            moveBomber()
+            dropBombs(self.bombInterval)
+        }
+        
+/*
         for touch: AnyObject in touches {
             let location = touch.locationInNode(self)
-            println("(\(location.x), \(location.y)")
+            println("touch start: (\(location.x), \(location.y)")
         }
-
+*/
+    }
+    
+    override func touchesMoved(touches: NSSet, withEvent event: UIEvent) {
+        //println("touch moved")
+        let touch = touches.anyObject() as UITouch
+        let touchLocation = touch.locationInNode(self)
+        moveBasket(touchLocation.x)
+    }
+    
+    override func touchesEnded(touches: NSSet, withEvent event: UIEvent) {
+        let touch = touches.anyObject() as UITouch
+        
+        //look for touch on SKScene
+        let touchLocation = touch.locationInNode(self)
+        moveBasket(touchLocation.x)
+    }
+    
+    func dropBombs(waitTime: NSTimeInterval) -> () {
+      
+        runAction(SKAction.repeatActionForever(
+            SKAction.sequence([
+                bombAction,
+                SKAction.waitForDuration(waitTime)
+                ])), withKey: bombActionKey)
+        
+/*
+        runAction(SKAction.repeatActionForever(
+            SKAction.sequence([
+                bombAction,
+                SKAction.waitForDuration(waitTime)
+                ])
+            )//, count:self.totalBombs)
+        )
+*/
+        
+    }
+    
+    func moveBasket(pos_x:CGFloat) -> () {
+        basket.runAction(SKAction.moveToX(pos_x, duration: bomberSpeed/2))
+        
+    }
+    
+    func drawBackground() {
+        
+        //specify sprite coordinates by its midpoint
+        //you can change this by specifying sprite.anchorpoint
+        //anchorpoint is defined in unit coordinate system.  i.e., (0.5, 0.5) is the default anchor
+        
+        bkgnd.anchorPoint = CGPoint(x: 0, y: 1)
+        bkgnd.position = CGPoint(x: 0, y: self.screenHeight - bomber.size.height)
+        bkgnd.xScale = 2
+        bkgnd.yScale = 2
+        
+        println("background size: \(bkgnd.size.width), \(bkgnd.size.height)")
+        addChild(bkgnd)
     }
     
     func moveBomber() {
         
-        var x_rand = random(min:0.0, max:self.screenWidth-1)
+        let center = self.screenWidth/2
+        var x_rand:CGFloat = 0
+        var offset:CGFloat = 0
+        var percentage = (CGFloat)(hitCounter/10) * 0.1
+        
+        offset = percentage * self.screenWidth
+        if percentage > 0.7 {
+            x_rand = random(min:0.0, max:self.screenWidth - bomber.size.width)
+
+        } else {
+            x_rand = random(min: center-offset, max: center+offset)
+        }
         
         
         bomber.runAction(SKAction.repeatAction(
             SKAction.sequence([
-                SKAction.moveToX(x_rand, duration: 0.4)
+                SKAction.moveToX(x_rand, duration: bomberSpeed)
                 //SKAction.waitForDuration(0.25)
                 ]), count:1),
             completion: {self.bomberActionDone()})
+        
         
         
     }
@@ -95,21 +221,19 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     func bomberActionDone() -> Void {
         
         //println("bomber completed move")
+        if gameStart == false {
+            return
+        }
+        
+        
         moveBomber()
     }
     
     func addBomber() {
-        bomber = SKSpriteNode(imageNamed: "plushdoll")
-/*
-        bomber.physicsBody = SKPhysicsBody(rectangleOfSize: bomber.size)
-        bomber.physicsBody?.dynamic = true
-        bomber.physicsBody?.affectedByGravity = false
         
-        bomber.physicsBody?.categoryBitMask = PhysicsBitMask.Bomber.rawValue
-        bomber.physicsBody?.collisionBitMask = PhysicsBitMask.None.rawValue
-        bomber.physicsBody?.contactTestBitMask = PhysicsBitMask.None.rawValue
- */
-        bomber.position = CGPoint(x: 500, y: bomberScreenPosY)
+        bomber.anchorPoint = CGPoint(x: 0, y: 1)
+        bomber.position = CGPoint(x: self.screenWidth/2, y: self.screenHeight - 10)
+        println("bomber size: \(bomber.size.width), \(bomber.size.height)")
         addChild(bomber)
         
     }
@@ -134,11 +258,11 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         var x_rand = random(min:0.0, max:self.screenWidth-1)
         var y_rand = random(min:0.0, max: self.screenHeight/4)
         
+        
+        bomb.anchorPoint = CGPoint(x: 0, y: 1)
         x_rand = bomber.position.x
         y_rand = bomber.position.y - bomber.size.height
-        //y_rand = self.screenHeight - y_rand
-        //y_rand = 700
-
+   
         if x_rand < bomb.size.width {
             x_rand = bomb.size.width
         }
@@ -152,19 +276,12 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         bomb.position = CGPoint(x:x_rand, y:y_rand)
         
         addChild(bomb)
-/*
-        let actualDuration = random(min: CGFloat(2.0), max: CGFloat(4.0))
-        let actionMove = SKAction.moveTo(CGPoint(x: x_rand, y: 0), duration:
-            NSTimeInterval(actualDuration))
-        let actionMoveDone = SKAction.removeFromParent()
-        bomb.runAction(SKAction.sequence([actionMove, actionMoveDone]))
-*/
         
         
     }
     
     func addBasket() {
-        let basket = SKSpriteNode(imageNamed: "basket1")
+        
 
         basket.physicsBody = SKPhysicsBody(rectangleOfSize: basket.size)
         basket.physicsBody?.dynamic = true
@@ -175,7 +292,8 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         basket.physicsBody?.contactTestBitMask = PhysicsBitMask.None.rawValue
     
 
-        basket.position = CGPoint(x: 500, y: basket.size.height)
+        basket.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+        basket.position = CGPoint(x: self.screenWidth/2, y: bottomBrick.size.height + basket.size.height/2)
         println("basket size \(basket.size.height)")
         addChild(basket)
         
@@ -185,8 +303,9 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         //let bottomBrick = SKShapeNode(rect: CGRect(x: 0, y: 80, width: self.screenWidth, height: 80))
         //bottomBrick.fillColor = UIColor.redColor()
         //bottomBrick.strokeColor = UIColor.redColor()
-        let bottomBrick = SKSpriteNode(imageNamed: "bar")
-        bottomBrick.position = CGPoint(x:0, y:40)
+        
+        bottomBrick.anchorPoint = CGPoint(x: 0, y: 0)
+        bottomBrick.position = CGPoint(x:0, y:0)
         bottomBrick.physicsBody = SKPhysicsBody(rectangleOfSize: CGSize(width: 2048, height: 20))
         bottomBrick.physicsBody?.dynamic = false
         bottomBrick.physicsBody?.affectedByGravity = false
@@ -210,13 +329,36 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     }
     
     
+    func gameOver() -> () {
+        if gameStart == false {
+            return
+        }
+ 
+        removeActionForKey(bombActionKey)
+        gameStart = false
+        
+        self.addChild(startLabel)
+        
+    }
+    
+    func bombRateChange(count: Int) -> () {
+
+        //var shave:Float = (Float)(hitCounter/10) * 0.1
+        //if shave > 0.7 {
+            //shave = 0.7
+        //}
+        
+        //removeActionForKey(bombActionKey)
+        //dropBombs(bombInterval)
+        
+        
+    }
+    
     func didBeginContact(contact: SKPhysicsContact) {
 
         var bombBody: SKPhysicsBody
         var otherBody: SKPhysicsBody
         
-        hitCounter++
-        //println("\(hitCounter)/\(totalBombs)")
         
         if contact.bodyA.categoryBitMask == PhysicsBitMask.Bomb.rawValue {
             bombBody = contact.bodyA
@@ -229,32 +371,28 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
             return
         }
 
-/*
-        if secondBody.categoryBitMask != PhysicsBitMask.Ground.rawValue {
-            return
-        }
-*/
-//        println("Yes")
         if otherBody.categoryBitMask == PhysicsBitMask.Basket.rawValue {
             hitCounter++
-            println("caught: \(hitCounter)")
+            displayScore(hitCounter, drop:dropCounter)
+            bombRateChange(hitCounter)
+        } else {
+            //this is a collision with the ground
+            dropCounter++
+            if (dropCounter > 3) {
+                displayScore(hitCounter, drop: dropCounter)
+                gameOver()
+            }
+            
         }
         bombBody.node?.removeFromParent()
+        
 
+        if gameStart == false {
+            println("collision")
+            removeActionForKey(bombActionKey)
+        }
     }
     
     func didEndContact(contact: SKPhysicsContact) {
-        //println("end contact")
-/*
-        var bombBody: SKPhysicsBody
-        
-        if contact.bodyA.categoryBitMask == PhysicsBitMask.Bomb.rawValue {
-            bombBody = contact.bodyA
-        } else {
-            bombBody = contact.bodyB
-        }
-        
-        bombBody.node?.removeFromParent()
-*/
     }
 }
