@@ -24,6 +24,9 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     
     var hitCounter: Int = 0
     var dropCounter: Int = 0
+    var numChances: Int = 5
+    var highScore: Int = 0
+    var clearCounter: Int = 0
     
     let bomberScreenPosY:CGFloat = 700
     var bomber:SKSpriteNode = SKSpriteNode()
@@ -33,10 +36,14 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     let bomberSpeed:NSTimeInterval = 0.4
     var gameStart = false
     var bombInterval:NSTimeInterval = 0.3
-    var startLabel = SKLabelNode()
-    var scoreLabel = SKLabelNode()
+
     var bombAction = SKAction()
     var bombActionKey = ""
+    
+    
+    var startLabel = SKLabelNode()
+    var scoreLabel = SKLabelNode()
+    var highScoreLabel = SKLabelNode()
     
     override func didMoveToView(view: SKView) {
         /* Setup your scene here */
@@ -51,6 +58,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         startLabel = SKLabelNode(fontNamed:"Chalkduster")
         startLabel.text = "Game Over";
         startLabel.fontSize = 65;
+        startLabel.fontColor = UIColor.blackColor()
         startLabel.position = CGPoint(x:CGRectGetMidX(self.frame), y:CGRectGetMidY(self.frame) - 70);
         
         
@@ -58,6 +66,14 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         scoreLabel.text = "score: \(hitCounter)";
         scoreLabel.fontSize = 35;
         scoreLabel.position = CGPoint(x:80, y: self.frame.height - 100)
+        scoreLabel.horizontalAlignmentMode = SKLabelHorizontalAlignmentMode.Left
+        
+        highScoreLabel = SKLabelNode(fontNamed:"Chalkduster")
+        highScoreLabel.text = "high: \(highScore)";
+        highScoreLabel.fontSize = 35;
+        highScoreLabel.position = CGPoint(x:80, y: self.frame.height - 50)
+        highScoreLabel.horizontalAlignmentMode = SKLabelHorizontalAlignmentMode.Left
+
 
         self.screenWidth = self.frame.width //UIScreen.mainScreen().bounds.width
         self.screenHeight = self.frame.height //UIScreen.mainScreen().bounds.height
@@ -93,10 +109,37 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         self.addChild(myLabel)
         self.addChild(startLabel)
         self.addChild(scoreLabel)
+        self.addChild(highScoreLabel)
 
     }
     
+    func scoreAnalysis() -> () {
+        if hitCounter > highScore {
+            highScore = hitCounter
+        }
+        
+        var rankingText = "Game Over"
+        if hitCounter >= 250 {
+            rankingText += " BOSSMODE"
+        }
+        else if hitCounter >= 200 {
+            rankingText += " SUPREMO"
+        } else if hitCounter >= 150 {
+            rankingText += " MASTER"
+        } else if hitCounter >= 100 {
+            rankingText += " EXPERT"
+        } else if hitCounter > 50 {
+            rankingText += " BRO"
+        }else {
+            rankingText += " NOOB"
+        }
+        startLabel.text = rankingText
+    }
     func displayScore(hit: Int, drop: Int) {
+        
+
+        scoreAnalysis()
+        highScoreLabel.text = "high: \(highScore)"
         scoreLabel.text = "score: \(hit) -\(drop)";
     }
     
@@ -330,10 +373,24 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     
     
     func gameOver() -> () {
+
+        if hitCounter == 0 {
+            clearCounter++;
+        } else {
+            clearCounter = 0
+        }
+        
+        if clearCounter == 5 {
+            highScore = 0
+        }
+        
+        
+        //don't want to repeat below actions
+        //if we took them already
         if gameStart == false {
             return
         }
- 
+        
         removeActionForKey(bombActionKey)
         gameStart = false
         
@@ -378,7 +435,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         } else {
             //this is a collision with the ground
             dropCounter++
-            if (dropCounter > 3) {
+            if (dropCounter >= numChances) {
                 displayScore(hitCounter, drop: dropCounter)
                 gameOver()
             }
